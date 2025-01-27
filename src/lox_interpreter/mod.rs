@@ -1,6 +1,7 @@
 use std::{fs, io, io::Write};
 
 use anyhow::{anyhow, Result};
+use scanner::Scanner;
 
 pub mod scanner;
 pub mod token;
@@ -47,7 +48,11 @@ impl Lox {
         Ok(())
     }
 
-    pub fn run(&self, _source: Vec<u8>) -> Result<()> {
+    pub fn run(&self, source: Vec<u8>) -> Result<()> {
+        let mut scanner = Scanner::new(source);
+        let tokens = scanner.scan_tokens()?;
+
+        println!("{:#?}", tokens);
         if self.had_error {
             return Err(anyhow!("Error"));
         }

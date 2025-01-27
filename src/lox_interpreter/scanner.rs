@@ -202,7 +202,7 @@ impl Scanner {
         if self.is_at_end() {
             '\0'
         } else {
-            self.source[self.current] as char
+            self.source[self.current + 1] as char
         }
     }
 
@@ -211,7 +211,7 @@ impl Scanner {
     }
 
     fn is_alpha_numeric(&self, c: char) -> bool {
-        self.is_digit(c) && self.is_alphabetic(c)
+        self.is_digit(c) || self.is_alphabetic(c)
     }
 
     fn read_identifier(&mut self) -> Result<()> {
