@@ -11,6 +11,7 @@ pub struct Scanner {
     tokens: Vec<Token>,
     start: usize,
     current: usize,
+    column: usize,
     line: usize,
 }
 
@@ -21,6 +22,7 @@ impl Scanner {
             tokens: Vec::new(),
             start: 0,
             current: 0,
+            column: 1,
             line: 1,
         }
     }
@@ -36,6 +38,7 @@ impl Scanner {
             "".to_string(),
             token::Literal::String(String::new()),
             self.line,
+            self.column,
         ));
         return Ok(self.tokens.clone());
     }
@@ -45,26 +48,27 @@ impl Scanner {
     }
 
     pub fn scan_token(&mut self) -> Result<()> {
+        let col = self.column;
         let c = self.advance();
 
         return match c {
-            '(' => self.add_token(TokenType::LEFT_PAREN),
-            ')' => self.add_token(TokenType::RIGHT_PAREN),
-            '{' => self.add_token(TokenType::LEFT_BRACE),
-            '}' => self.add_token(TokenType::RIGHT_BRACE),
-            ',' => self.add_token(TokenType::COMMA),
-            '.' => self.add_token(TokenType::DOT),
-            '-' => self.add_token(TokenType::MINUS),
-            '+' => self.add_token(TokenType::PLUS),
-            ';' => self.add_token(TokenType::SEMICOLON),
-            '*' => self.add_token(TokenType::STAR),
+            '(' => self.add_token(TokenType::LEFT_PAREN, col),
+            ')' => self.add_token(TokenType::RIGHT_PAREN, col),
+            '{' => self.add_token(TokenType::LEFT_BRACE, col),
+            '}' => self.add_token(TokenType::RIGHT_BRACE, col),
+            ',' => self.add_token(TokenType::COMMA, col),
+            '.' => self.add_token(TokenType::DOT, col),
+            '-' => self.add_token(TokenType::MINUS, col),
+            '+' => self.add_token(TokenType::PLUS, col),
+            ';' => self.add_token(TokenType::SEMICOLON, col),
+            '*' => self.add_token(TokenType::STAR, col),
             '!' => {
                 let token_type = if self.match_next('=') {
                     TokenType::BANG_EQUAL
                 } else {
                     TokenType::BANG
                 };
-                self.add_token(token_type)
+                self.add_token(token_type, col)
             }
             '=' => {
                 let token_type = if self.match_next('=') {
@@ -72,7 +76,7 @@ impl Scanner {
                 } else {
                     TokenType::EQUAL
                 };
-                self.add_token(token_type)
+                self.add_token(token_type, col)
             }
             '<' => {
                 let token_type = if self.match_next('=') {
@@ -80,7 +84,7 @@ impl Scanner {
                 } else {
                     TokenType::LESS
                 };
-                self.add_token(token_type)
+                self.add_token(token_type, col)
             }
             '>' => {
                 let token_type = if self.match_next('=') {
@@ -88,7 +92,7 @@ impl Scanner {
                 } else {
                     TokenType::GREATER
                 };
-                self.add_token(token_type)
+                self.add_token(token_type, col)
             }
             '/' => {
                 if self.match_next('/') {
@@ -97,16 +101,20 @@ impl Scanner {
                     }
                     Ok(())
                 } else {
-                    self.add_token(TokenType::SLASH)
+                    self.add_token(TokenType::SLASH, col)
                 }
             }
             ' ' => Ok(()),
             '\r' => Ok(()),
             '\t' => Ok(()),
-            '\n' => Ok(self.line += 1),
-            c if self.is_digit(c) => self.read_number(),
-            '"' => self.read_string(),
-            c if self.is_alphabetic(c) => self.read_identifier(),
+            '\n' => {
+                self.line += 1;
+                self.column = 1;
+                return Ok(());
+            }
+            c if self.is_digit(c) => self.read_number(col),
+            '"' => self.read_string(col),
+            c if self.is_alphabetic(c) => self.read_identifier(col),
             c => Err(anyhow!(format!(
                 "{}, Unexpected Character At Line {}.",
                 c, self.line
@@ -117,18 +125,24 @@ impl Scanner {
     fn advance(&mut self) -> char {
         let char = self.source[self.current];
         self.current += 1;
+        self.column += 1;
         char as char
     }
 
-    fn add_token(&mut self, token_type: TokenType) -> Result<()> {
-        self.add_token_with_literal(token_type, Literal::String(String::new()))?;
+    fn add_token(&mut self, token_type: TokenType, column: usize) -> Result<()> {
+        self.add_token_with_literal(token_type, Literal::None, column)?;
         Ok(())
     }
 
-    fn add_token_with_literal(&mut self, token_type: TokenType, literal: Literal) -> Result<()> {
+    fn add_token_with_literal(
+        &mut self,
+        token_type: TokenType,
+        literal: Literal,
+        column: usize,
+    ) -> Result<()> {
         let text = String::from_utf8(self.source[self.start..self.current].into())?;
         self.tokens
-            .push(Token::new(token_type, text, literal, self.line));
+            .push(Token::new(token_type, text, literal, self.line, column));
         Ok(())
     }
 
@@ -142,6 +156,7 @@ impl Scanner {
         }
 
         self.current += 1;
+        self.column += 1;
         true
     }
 
@@ -153,7 +168,7 @@ impl Scanner {
         }
     }
 
-    fn read_string(&mut self) -> Result<()> {
+    fn read_string(&mut self, column: usize) -> Result<()> {
         while self.peek() != '"' && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;
@@ -170,15 +185,17 @@ impl Scanner {
 
         self.advance();
 
-        let value = String::from_utf8(self.source[self.start..self.current].into())?;
-        self.add_token_with_literal(TokenType::STRING, Literal::String(value))
+        // We do not want the opening and closing quotes.
+        let value = String::from_utf8(self.source[self.start + 1..self.current - 1].into())?;
+        // Once again we do not want to include the starting quote.
+        self.add_token_with_literal(TokenType::STRING, Literal::String(value), column + 1)
     }
 
     fn is_digit(&self, c: char) -> bool {
         c >= '0' && c <= '9'
     }
 
-    fn read_number(&mut self) -> Result<()> {
+    fn read_number(&mut self, column: usize) -> Result<()> {
         while self.is_digit(self.peek()) {
             self.advance();
         }
@@ -195,7 +212,7 @@ impl Scanner {
         let number_bytes = &self.source[self.start..self.current];
         let number_str = String::from_utf8(number_bytes.into()).expect("Invalid UTF-8 sequence");
         let number: f64 = number_str.parse().unwrap();
-        self.add_token_with_literal(TokenType::NUMBER, token::Literal::Float(number))
+        self.add_token_with_literal(TokenType::NUMBER, token::Literal::Float(number), column)
     }
 
     fn peek_next(&self) -> char {
@@ -214,7 +231,7 @@ impl Scanner {
         self.is_digit(c) || self.is_alphabetic(c)
     }
 
-    fn read_identifier(&mut self) -> Result<()> {
+    fn read_identifier(&mut self, column: usize) -> Result<()> {
         while self.is_alpha_numeric(self.peek()) {
             self.advance();
         }
@@ -225,7 +242,7 @@ impl Scanner {
             None => TokenType::IDENTIFIER,
         };
 
-        self.add_token(token_type)?;
+        self.add_token(token_type, column)?;
         Ok(())
     }
 }

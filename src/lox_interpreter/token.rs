@@ -83,6 +83,7 @@ pub fn lookup_keyword(keyword: String) -> Option<TokenType> {
 pub enum Literal {
     String(String),
     Float(f64),
+    None,
 }
 
 #[allow(dead_code)]
@@ -92,6 +93,7 @@ pub struct Token {
     lexeme: String,
     literal: Literal,
     line: usize,
+    column: usize,
 }
 
 impl Token {
@@ -102,12 +104,14 @@ impl Token {
         // going with a generic.
         literal: Literal,
         line: usize,
+        column: usize,
     ) -> Self {
         Token {
             token_type,
             lexeme,
             literal,
             line,
+            column,
         }
     }
 }
