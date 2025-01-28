@@ -3,6 +3,7 @@ use std::{fs, io, io::Write};
 use anyhow::{anyhow, Result};
 use scanner::Scanner;
 
+pub mod ast_tools;
 pub mod scanner;
 pub mod token;
 
