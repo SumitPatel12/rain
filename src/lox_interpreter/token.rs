@@ -51,6 +51,7 @@ pub enum TokenType {
     EOF,
 }
 
+// TODO: Check if this is the correct way to do this.
 const KEYWORDS: [(&str, TokenType); 16] = [
     ("and", TokenType::AND),
     ("class", TokenType::CLASS),

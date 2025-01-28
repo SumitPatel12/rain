@@ -1,3 +1,5 @@
+// TODO: RIGHT NOW I'M NOT LOOKING AT PERFORMANCE, BUT AT SOME PONITN I SHOULD. DON'T FORGET TO DO
+// THAT.
 use std::env;
 
 use anyhow::{anyhow, Result};
