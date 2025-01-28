@@ -90,7 +90,7 @@ pub enum Literal {
 #[derive(Debug, Clone)]
 pub struct Token {
     token_type: TokenType,
-    lexeme: String,
+    pub lexeme: String,
     literal: Literal,
     line: usize,
     column: usize,
