@@ -4,6 +4,8 @@ use anyhow::{anyhow, Result};
 use scanner::Scanner;
 
 pub mod ast_tools;
+pub mod error;
+pub mod parser;
 pub mod scanner;
 pub mod token;
 

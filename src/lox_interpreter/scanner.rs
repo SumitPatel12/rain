@@ -1,6 +1,11 @@
-use anyhow::{anyhow, Result};
+use std::error;
 
-use super::token::{self, Literal, Token, TokenType};
+use anyhow::{anyhow, Ok, Result};
+
+use super::{
+    error::error,
+    token::{self, Literal, Token, TokenType},
+};
 
 // TODO: Visit this later and cleanup if necessary.
 #[allow(dead_code)]
@@ -115,10 +120,17 @@ impl Scanner {
             c if self.is_digit(c) => self.read_number(col),
             '"' => self.read_string(col),
             c if self.is_alphabetic(c) => self.read_identifier(col),
-            c => Err(anyhow!(format!(
-                "{}, Unexpected Character At Line {}.",
-                c, self.line
-            ))),
+            c => {
+                error(
+                    col,
+                    self.line,
+                    &format!(
+                        "{}, Unexpected Character At Line {}, Column: {}",
+                        c, self.line, col
+                    ),
+                );
+                return Ok(());
+            }
         };
     }
 
@@ -177,10 +189,11 @@ impl Scanner {
         }
 
         if self.is_at_end() {
-            return Err(anyhow!(format!(
-                "Unterminated string at line: {}",
-                self.line
-            )));
+            error(
+                column,
+                self.line,
+                &format!("Unterminated string at line: {}", self.line),
+            );
         }
 
         self.advance();

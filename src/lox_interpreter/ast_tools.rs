@@ -25,7 +25,7 @@ pub enum Expr {
         expression: Box<Expr>,
     },
     Literal {
-        value: String,
+        value: Literal,
     },
     Unary {
         operator: Token,
@@ -105,7 +105,7 @@ fn test_print_tree() {
                 0,
             ),
             right: Box::new(Expr::Literal {
-                value: "123".to_string(),
+                value: Literal::Float(123f64),
             }),
         }),
         // Line and column do not matter for this.
@@ -118,7 +118,7 @@ fn test_print_tree() {
         ),
         right: Box::new(Expr::Grouping {
             expression: Box::new(Expr::Literal {
-                value: "45.67".to_string(),
+                value: Literal::Float(45.67),
             }),
         }),
     };

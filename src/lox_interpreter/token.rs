@@ -1,7 +1,8 @@
+use core::fmt;
 use std::fmt::Debug;
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     // Single-character tokens.
     LEFT_PAREN,
@@ -85,16 +86,28 @@ pub enum Literal {
     String(String),
     Float(f64),
     None,
+    Boolean(bool),
+}
+
+impl fmt::Display for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Literal::Boolean(bool) => write!(f, "{}", bool),
+            Literal::None => write!(f, "none"),
+            Literal::Float(float) => write!(f, "{}", float),
+            Literal::String(string) => write!(f, "{}", string),
+        }
+    }
 }
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Token {
-    token_type: TokenType,
+    pub token_type: TokenType,
     pub lexeme: String,
     literal: Literal,
-    line: usize,
-    column: usize,
+    pub line: usize,
+    pub column: usize,
 }
 
 impl Token {
