@@ -1,6 +1,8 @@
 use std::{fs, io, io::Write};
 
 use anyhow::{anyhow, Result};
+use ast_tools::ASTPrinter;
+use parser::Parser;
 use scanner::Scanner;
 
 pub mod ast_tools;
@@ -54,10 +56,21 @@ impl Lox {
     pub fn run(&self, source: Vec<u8>) -> Result<()> {
         let mut scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens()?;
-
         println!("{:#?}", tokens);
+
+        let mut parser = Parser::new(tokens);
+        let expression = parser.parse();
+
         if self.had_error {
             return Err(anyhow!("Error"));
+        }
+
+        match expression {
+            Some(expr) => {
+                let ast_printer = ASTPrinter::new();
+                println!("{}", ast_printer.print(expr));
+            }
+            None => return Ok(()),
         }
         Ok(())
     }

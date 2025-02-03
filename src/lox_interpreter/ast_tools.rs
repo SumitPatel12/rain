@@ -72,6 +72,10 @@ impl Visitor<String> for ASTPrinter {
 }
 
 impl ASTPrinter {
+    pub fn new() -> Self {
+        ASTPrinter
+    }
+
     pub fn print(&self, expr: Expr) -> String {
         expr.accept(self)
     }

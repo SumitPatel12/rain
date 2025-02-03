@@ -2,10 +2,6 @@ use core::fmt;
 
 use super::token::{Token, TokenType};
 
-pub fn error(column: usize, line: usize, message: &str) {
-    report(column, line, "", message);
-}
-
 pub fn report(column: usize, line: usize, position: &str, message: &str) {
     eprintln!(
         "[column: {}, line {}] Error {}: {}",
@@ -13,9 +9,9 @@ pub fn report(column: usize, line: usize, position: &str, message: &str) {
     );
 }
 
-pub fn parse_error(token: &Token, message: &str) {
+pub fn report_parse_error(token: &Token, message: &str) {
     if token.token_type == TokenType::EOF {
-        report(token.column, token.line, " end of file", message);
+        report(token.column, token.line, " at end of file", message);
     } else {
         report(
             token.column,

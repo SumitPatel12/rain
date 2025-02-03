@@ -1,7 +1,10 @@
+#[allow(unused_imports)]
+use crate::lox_interpreter::{ast_tools::ASTPrinter, scanner::Scanner};
+
 // TODO: The error reporting in my version is horrendous, fix it at some point!!
 use super::{
     ast_tools::Expr,
-    error::{parse_error, LoxError},
+    error::{report_parse_error, LoxError},
     token::{Literal, Token, TokenType},
 };
 use anyhow::{anyhow, bail, Ok, Result};
@@ -12,8 +15,12 @@ pub struct Parser {
 }
 
 impl Parser {
-    fn new(tokens: Vec<Token>) -> Self {
+    pub fn new(tokens: Vec<Token>) -> Self {
         Parser { tokens, current: 0 }
+    }
+
+    pub fn parse(&mut self) -> Option<Expr> {
+        self.expression().ok()
     }
 
     fn expression(&mut self) -> Result<Expr> {
@@ -173,7 +180,7 @@ impl Parser {
                     expression: Box::new(expr),
                 }
             }
-            _ => return bail!(self.error(self.peek(), "Expected expression.")),
+            _ => return Err(anyhow!(self.error(token, "Expected Expression."))),
         };
         self.advance();
         Ok(expr)
@@ -188,7 +195,44 @@ impl Parser {
     }
 
     pub fn error(&self, token: &Token, message: &str) -> LoxError {
-        parse_error(&token, message);
+        report_parse_error(&token, message);
         LoxError::Parse
     }
+
+    // Discards tokens until we think it's found a statement boundary.
+    #[allow(dead_code)]
+    fn synchronize(&mut self) {
+        self.advance();
+
+        while !self.is_at_end() {
+            if self.previous().clone().token_type == TokenType::SEMICOLON {
+                return;
+            }
+
+            match self.peek().token_type {
+                TokenType::CLASS
+                | TokenType::FUN
+                | TokenType::VAR
+                | TokenType::FOR
+                | TokenType::IF
+                | TokenType::WHILE
+                | TokenType::PRINT
+                | TokenType::RETURN => return,
+                _ => self.advance(),
+            };
+        }
+    }
+}
+
+#[test]
+pub fn test_parser() -> Result<()> {
+    let mut scanner = Scanner::new("-123 * 45.67".into());
+    let tokens = scanner.scan_tokens()?;
+
+    let mut parser = Parser::new(tokens);
+    let expression = parser.parse().expect("Could not parse sample code.");
+    let printer = ASTPrinter::new();
+
+    assert_eq!(printer.print(expression), "(* (- 123) 45.67)");
+    return Ok(());
 }

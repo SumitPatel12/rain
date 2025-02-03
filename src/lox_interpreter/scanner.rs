@@ -1,9 +1,7 @@
-use std::error;
-
-use anyhow::{anyhow, Ok, Result};
+use anyhow::{Ok, Result};
 
 use super::{
-    error::error,
+    error::report,
     token::{self, Literal, Token, TokenType},
 };
 
@@ -121,9 +119,10 @@ impl Scanner {
             '"' => self.read_string(col),
             c if self.is_alphabetic(c) => self.read_identifier(col),
             c => {
-                error(
+                report(
                     col,
                     self.line,
+                    "",
                     &format!(
                         "{}, Unexpected Character At Line {}, Column: {}",
                         c, self.line, col
@@ -189,9 +188,10 @@ impl Scanner {
         }
 
         if self.is_at_end() {
-            error(
+            report(
                 column,
                 self.line,
+                "",
                 &format!("Unterminated string at line: {}", self.line),
             );
         }
