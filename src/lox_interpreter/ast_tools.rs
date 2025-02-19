@@ -1,23 +1,33 @@
 // NOTE: I really don't know where the calss generation is taknig me, will skip that for now and
 // see where it takes me.
-use super::token::Token;
-use anyhow::Result;
+use super::{error::LoxError, token::Token};
 
 #[allow(unused_imports)]
 use crate::lox_interpreter::token::{Literal, TokenType};
 
 pub mod expr {
     use super::Expr;
-    use crate::lox_interpreter::token::{Literal, Token};
-    use anyhow::Result;
+    use crate::lox_interpreter::{
+        error::LoxError,
+        token::{Literal, Token},
+    };
 
     pub trait Visitor<T> {
-        fn visit_binary_expr(&mut self, left: &Expr, operator: &Token, right: &Expr) -> Result<T>;
-        fn visit_grouping_expr(&mut self, expression: &Expr) -> Result<T>;
-        fn visit_literal_expr(&mut self, value: &Literal) -> Result<T>;
-        fn visit_unary_expr(&mut self, operator: &Token, right: &Expr) -> Result<T>;
-        fn visit_variable_expr(&mut self, name: &Token) -> Result<T>;
-        fn visit_assignment_expression(&mut self, name: &Token, value: &Expr) -> Result<T>;
+        fn visit_binary_expr(
+            &mut self,
+            left: &Expr,
+            operator: &Token,
+            right: &Expr,
+        ) -> Result<T, LoxError>;
+        fn visit_grouping_expr(&mut self, expression: &Expr) -> Result<T, LoxError>;
+        fn visit_literal_expr(&mut self, value: &Literal) -> Result<T, LoxError>;
+        fn visit_unary_expr(&mut self, operator: &Token, right: &Expr) -> Result<T, LoxError>;
+        fn visit_variable_expr(&mut self, name: &Token) -> Result<T, LoxError>;
+        fn visit_assignment_expression(
+            &mut self,
+            name: &Token,
+            value: &Expr,
+        ) -> Result<T, LoxError>;
     }
 }
 
@@ -49,7 +59,7 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn accept<T>(&self, visitor: &mut dyn expr::Visitor<T>) -> Result<T> {
+    pub fn accept<T>(&self, visitor: &mut dyn expr::Visitor<T>) -> Result<T, LoxError> {
         match self {
             Expr::Binary {
                 left,
@@ -68,14 +78,17 @@ impl Expr {
 
 pub mod stmt {
     use super::{Expr, Stmt};
-    use crate::lox_interpreter::token::Token;
-    use anyhow::Result;
+    use crate::lox_interpreter::{error::LoxError, token::Token};
 
-    pub trait Visitor<R> {
-        fn visit_block_stmt(&mut self, statements: &Vec<Stmt>) -> Result<R>;
-        fn visit_expression_stmt(&mut self, expression: &Expr) -> Result<R>;
-        fn visit_print_stmt(&mut self, expression: &Expr) -> Result<R>;
-        fn visit_var_stmt(&mut self, name: &Token, initializer: &Option<Expr>) -> Result<R>;
+    pub trait Visitor<T> {
+        fn visit_block_stmt(&mut self, statements: &Vec<Stmt>) -> Result<T, LoxError>;
+        fn visit_expression_stmt(&mut self, expression: &Expr) -> Result<T, LoxError>;
+        fn visit_print_stmt(&mut self, expression: &Expr) -> Result<T, LoxError>;
+        fn visit_var_stmt(
+            &mut self,
+            name: &Token,
+            initializer: &Option<Expr>,
+        ) -> Result<T, LoxError>;
     }
 }
 
@@ -87,7 +100,7 @@ pub enum Stmt {
         expression: Expr,
     },
     Print {
-        expresson: Expr,
+        expression: Expr,
     },
     Var {
         name: Token,
@@ -97,16 +110,16 @@ pub enum Stmt {
 }
 
 impl Stmt {
-    fn print(&self, value: Expr) -> Result<Self> {
-        todo!()
-    }
-
-    fn expression(&self, expr: Expr) -> Result<Self> {
-        todo!()
-    }
-
-    pub fn accept(&self) -> Result<()> {
-        todo!()
+    pub fn accept<T>(&self, visitor: &mut dyn stmt::Visitor<T>) -> Result<T, LoxError> {
+        match self {
+            Stmt::Block { statements } => visitor.visit_block_stmt(statements),
+            Stmt::Expression { expression } => visitor.visit_expression_stmt(expression),
+            Stmt::Print {
+                expression: expresson,
+            } => visitor.visit_print_stmt(expresson),
+            Stmt::Var { name, initializer } => visitor.visit_var_stmt(name, initializer),
+            Stmt::NONE => todo!(),
+        }
     }
 }
 
@@ -114,29 +127,38 @@ impl Stmt {
 pub struct ASTPrinter;
 
 impl expr::Visitor<String> for ASTPrinter {
-    fn visit_unary_expr(&mut self, operator: &Token, right: &Expr) -> Result<String> {
+    fn visit_unary_expr(&mut self, operator: &Token, right: &Expr) -> Result<String, LoxError> {
         // NOTE: Yup, you need to clone this, same goes for the one below.
         self.parenthesize(operator.lexeme.clone(), vec![right])
     }
 
-    fn visit_binary_expr(&mut self, left: &Expr, operator: &Token, right: &Expr) -> Result<String> {
+    fn visit_binary_expr(
+        &mut self,
+        left: &Expr,
+        operator: &Token,
+        right: &Expr,
+    ) -> Result<String, LoxError> {
         self.parenthesize(operator.lexeme.clone(), vec![left, right])
     }
 
-    fn visit_literal_expr(&mut self, value: &Literal) -> Result<String> {
+    fn visit_literal_expr(&mut self, value: &Literal) -> Result<String, LoxError> {
         // TODO: Check if the None case should be handled differently as they have done in the book.
         Ok(value.to_string())
     }
 
-    fn visit_grouping_expr(&mut self, expression: &Expr) -> Result<String> {
+    fn visit_grouping_expr(&mut self, expression: &Expr) -> Result<String, LoxError> {
         self.parenthesize("group".to_string(), vec![expression])
     }
 
-    fn visit_variable_expr(&mut self, name: &Token) -> Result<String> {
+    fn visit_variable_expr(&mut self, name: &Token) -> Result<String, LoxError> {
         Ok(name.lexeme.clone())
     }
 
-    fn visit_assignment_expression(&mut self, name: &Token, value: &Expr) -> Result<String> {
+    fn visit_assignment_expression(
+        &mut self,
+        name: &Token,
+        value: &Expr,
+    ) -> Result<String, LoxError> {
         self.parenthesize(name.lexeme.clone(), vec![value])
     }
 }
@@ -146,12 +168,16 @@ impl ASTPrinter {
         ASTPrinter
     }
 
-    pub fn print(&mut self, expr: Expr) -> Result<String> {
+    pub fn print(&mut self, expr: Expr) -> Result<String, LoxError> {
         expr.accept(self)
     }
 
     // NOTE: format does return a string, but I couldn't figure out a good way to use that.
-    pub fn parenthesize(&mut self, name: String, expressions: Vec<&Expr>) -> Result<String> {
+    pub fn parenthesize(
+        &mut self,
+        name: String,
+        expressions: Vec<&Expr>,
+    ) -> Result<String, LoxError> {
         let mut parenthesized_string = String::new();
         parenthesized_string.push('(');
         parenthesized_string.push_str(&name);

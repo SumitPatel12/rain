@@ -1,4 +1,3 @@
-use anyhow::{bail, Ok, Result};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use super::{error::LoxError, interpreter::Object, token::Token};
@@ -12,7 +11,14 @@ pub struct Environment {
 }
 
 impl Environment {
-    pub fn define(&mut self, name: String, value: Object) -> Result<()> {
+    pub fn new() -> Self {
+        Environment {
+            enclosing: None,
+            values: HashMap::new(),
+        }
+    }
+
+    pub fn define(&mut self, name: String, value: Object) -> Result<(), LoxError> {
         self.values.insert(name, value);
         Ok(())
     }
@@ -24,7 +30,7 @@ impl Environment {
         }
     }
 
-    pub fn get(&self, name: &Token) -> Result<Object> {
+    pub fn get(&self, name: &Token) -> Result<Object, LoxError> {
         let key = &name.lexeme;
         if let Some(value) = self.values.get(key) {
             Ok(value.clone())
@@ -32,15 +38,15 @@ impl Environment {
             if let Some(ref enclosing) = self.enclosing {
                 enclosing.borrow().get(name)
             } else {
-                bail!(LoxError::Runtime {
+                Err(LoxError::Runtime {
                     token: name.clone(),
-                    message: format!("Undefined variable: {}", key)
+                    message: format!("Undefined variable: {}", key),
                 })
             }
         }
     }
 
-    pub fn assign(&mut self, name: &Token, value: Object) -> Result<()> {
+    pub fn assign(&mut self, name: &Token, value: Object) -> Result<(), LoxError> {
         let key = &name.lexeme;
         if self.values.contains_key(key) {
             self.values.insert(key.clone(), value);
@@ -49,9 +55,9 @@ impl Environment {
             if let Some(ref enclosing) = self.enclosing {
                 enclosing.borrow_mut().assign(name, value)
             } else {
-                bail!(LoxError::Runtime {
+                Err(LoxError::Runtime {
                     token: name.clone(),
-                    message: format!("Undefined variable: {}", key)
+                    message: format!("Undefined variable: {}", key),
                 })
             }
         }

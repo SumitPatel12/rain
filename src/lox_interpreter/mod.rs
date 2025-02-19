@@ -1,6 +1,6 @@
 use std::{fs, io, io::Write};
 
-use anyhow::{anyhow, Result};
+use error::LoxError;
 use interpreter::Interpreter;
 use parser::Parser;
 use scanner::Scanner;
@@ -22,18 +22,18 @@ impl Lox {
         Lox { had_error: false }
     }
 
-    pub fn run_file(&mut self, file_name: String) -> Result<()> {
+    pub fn run_file(&mut self, file_name: String) -> Result<(), LoxError> {
         let file_contents = fs::read(file_name)?;
         self.run(file_contents)?;
 
         if self.had_error {
-            return Err(anyhow!("Error"));
+            return Err(LoxError::Error("Had Error".to_string()));
         }
 
         Ok(())
     }
 
-    pub fn run_prompt(&mut self) -> Result<()> {
+    pub fn run_prompt(&mut self) -> Result<(), LoxError> {
         let mut line = String::new();
 
         loop {
@@ -55,7 +55,7 @@ impl Lox {
         Ok(())
     }
 
-    pub fn run(&self, source: Vec<u8>) -> Result<()> {
+    pub fn run(&self, source: Vec<u8>) -> Result<(), LoxError> {
         let mut scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens()?;
         // println!("{:#?}", tokens);
@@ -66,10 +66,10 @@ impl Lox {
 
         if self.had_error {
             println!("Got An Error.");
-            return Err(anyhow!("Error"));
+            return Err(LoxError::Error("Error running.".to_string()));
         }
 
-        let mut intpereter = Interpreter;
+        let mut intpereter = Interpreter::new();
         intpereter.interpret(statements)?;
 
         Ok(())

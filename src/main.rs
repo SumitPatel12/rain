@@ -2,18 +2,17 @@
 // THAT.
 use std::env;
 
-use anyhow::{anyhow, Result};
-use lox_interpreter::Lox;
+use lox_interpreter::{error::LoxError, Lox};
 
 pub mod lox_interpreter;
 
-fn main() -> Result<()> {
+fn main() -> Result<(), LoxError> {
     let args: Vec<String> = env::args().collect();
     let mut lox = Lox::new();
     println!("{:#?}", args);
 
     if args.len() > 2 {
-        return Err(anyhow!("Usage: jlox [script]"));
+        return Err(LoxError::Error("Usage: jlox [script]".to_string()));
     } else if args.len() == 2 {
         let _ = lox.run_file(args[1].clone());
     } else {

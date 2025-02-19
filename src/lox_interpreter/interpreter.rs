@@ -1,16 +1,11 @@
 use crate::lox_interpreter::error::LoxError;
-use std::{cell::RefCell, env, fmt, os::macos::raw::stat, rc::Rc};
+use std::{cell::RefCell, fmt, rc::Rc};
 
 use super::{
-    ast_tools::{
-        expr,
-        stmt::{self, Visitor},
-        Expr, Stmt,
-    },
+    ast_tools::{expr, stmt, Expr, Stmt},
     environment::Environment,
     token::{Literal, Token, TokenType},
 };
-use anyhow::{bail, Ok, Result};
 
 #[derive(Clone)]
 pub enum Object {
@@ -50,14 +45,20 @@ pub struct Interpreter {
 }
 
 impl Interpreter {
-    pub fn interpret(&mut self, statements: Vec<Stmt>) -> Result<()> {
+    pub fn new() -> Self {
+        Interpreter {
+            environment: Rc::new(RefCell::new(Environment::new())),
+        }
+    }
+
+    pub fn interpret(&mut self, statements: Vec<Stmt>) -> Result<(), LoxError> {
         for stmt in statements {
-            self.execute(stmt)?
+            self.execute(&stmt)?
         }
         Ok(())
     }
 
-    fn evaluate(&mut self, expression: &Expr) -> Result<Object> {
+    fn evaluate(&mut self, expression: &Expr) -> Result<Object, LoxError> {
         expression.accept(self)
     }
 
@@ -69,16 +70,16 @@ impl Interpreter {
         }
     }
 
-    fn number_operand_error<T>(&self, operator: &Token, message: String) -> Result<T> {
+    fn number_operand_error<T>(&self, operator: &Token, message: String) -> Result<T, LoxError> {
         let error_message = if message.is_empty() {
             "Operand must be a number.".to_string()
         } else {
             message
         };
 
-        bail!(LoxError::Runtime {
+        Err(LoxError::Runtime {
             token: operator.clone(),
-            message: error_message
+            message: error_message,
         })
     }
 
@@ -92,8 +93,8 @@ impl Interpreter {
         }
     }
 
-    fn execute(&mut self, stmt: &Stmt) -> Result<()> {
-        stmt.accept()?;
+    fn execute(&mut self, stmt: &Stmt) -> Result<(), LoxError> {
+        stmt.accept(self)?;
         Ok(())
     }
 
@@ -101,11 +102,11 @@ impl Interpreter {
         &mut self,
         statements: &Vec<Stmt>,
         environment: Rc<RefCell<Environment>>,
-    ) -> Result<()> {
+    ) -> Result<(), LoxError> {
         let previous = self.environment.clone();
         // NOTE: Turns out closures can be used like this as well, this was kindof a round about
         // way of getting over the try catch thing in java.
-        let execue_statements = || -> Result<()> {
+        let execue_statements = || -> Result<(), LoxError> {
             self.environment = environment;
             for statement in statements {
                 self.execute(statement)?
@@ -125,7 +126,7 @@ impl expr::Visitor<Object> for Interpreter {
         left: &Expr,
         operator: &super::token::Token,
         right: &Expr,
-    ) -> Result<Object> {
+    ) -> Result<Object, LoxError> {
         let l = self.evaluate(left)?;
         let r = self.evaluate(right)?;
 
@@ -202,11 +203,11 @@ impl expr::Visitor<Object> for Interpreter {
         }
     }
 
-    fn visit_grouping_expr(&mut self, expression: &Expr) -> Result<Object> {
+    fn visit_grouping_expr(&mut self, expression: &Expr) -> Result<Object, LoxError> {
         self.evaluate(expression)
     }
 
-    fn visit_literal_expr(&mut self, value: &Literal) -> Result<Object> {
+    fn visit_literal_expr(&mut self, value: &Literal) -> Result<Object, LoxError> {
         match value {
             Literal::String(str) => Ok(Object::String(str.clone())),
             Literal::Float(f) => Ok(Object::Number(*f)),
@@ -215,7 +216,11 @@ impl expr::Visitor<Object> for Interpreter {
         }
     }
 
-    fn visit_unary_expr(&mut self, operator: &super::token::Token, right: &Expr) -> Result<Object> {
+    fn visit_unary_expr(
+        &mut self,
+        operator: &super::token::Token,
+        right: &Expr,
+    ) -> Result<Object, LoxError> {
         let right = self.evaluate(right)?;
 
         match operator.token_type {
@@ -228,48 +233,59 @@ impl expr::Visitor<Object> for Interpreter {
         }
     }
 
-    fn visit_variable_expr(&mut self, name: &Token) -> Result<Object> {
-        self.environment.get(name)
+    fn visit_variable_expr(&mut self, name: &Token) -> Result<Object, LoxError> {
+        self.environment.borrow_mut().get(name)
     }
 
-    fn visit_assignment_expression(&mut self, name: &Token, value: &Expr) -> Result<Object> {
+    fn visit_assignment_expression(
+        &mut self,
+        name: &Token,
+        value: &Expr,
+    ) -> Result<Object, LoxError> {
         let value = self.evaluate(value)?;
-        self.environment.assign(name, value.clone())?;
+        self.environment.borrow_mut().assign(name, value.clone())?;
         Ok(value)
     }
 }
 
 impl stmt::Visitor<()> for Interpreter {
-    fn visit_block_stmt(&mut self, statements: &Vec<super::ast_tools::Stmt>) -> Result<()> {
+    fn visit_block_stmt(
+        &mut self,
+        statements: &Vec<super::ast_tools::Stmt>,
+    ) -> Result<(), LoxError> {
         self.execute_block(
             statements,
             Rc::new(RefCell::new(Environment::create_enclosing_for_env(
                 &self.environment,
             ))),
-        );
+        )?;
         Ok(())
     }
 
-    fn visit_expression_stmt(&mut self, expression: &Expr) -> Result<()> {
+    fn visit_expression_stmt(&mut self, expression: &Expr) -> Result<(), LoxError> {
         self.evaluate(expression)?;
         Ok(())
     }
 
-    fn visit_print_stmt(&mut self, expression: &Expr) -> Result<()> {
+    fn visit_print_stmt(&mut self, expression: &Expr) -> Result<(), LoxError> {
         let value = self.evaluate(expression)?;
         println!("Value: {}", value.to_string());
         Ok(())
     }
 
-    fn visit_var_stmt(&mut self, name: &Token, initializer: &Option<Expr>) -> Result<()> {
+    fn visit_var_stmt(&mut self, name: &Token, initializer: &Option<Expr>) -> Result<(), LoxError> {
         match initializer {
             Some(init) => {
                 let value = self.evaluate(init)?;
-                self.environment.define(name.lexeme.clone(), value)?;
+                self.environment
+                    .borrow_mut()
+                    .define(name.lexeme.clone(), value)?;
                 return Ok(());
             }
             None => {
-                self.environment.define(name.lexeme.clone(), Object::NONE)?;
+                self.environment
+                    .borrow_mut()
+                    .define(name.lexeme.clone(), Object::NONE)?;
                 return Ok(());
             }
         }

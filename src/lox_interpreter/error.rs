@@ -1,4 +1,5 @@
-use core::fmt;
+use std::{io, string::FromUtf8Error};
+use thiserror::Error;
 
 use super::token::{Token, TokenType};
 
@@ -22,17 +23,16 @@ pub fn report_parse_error(token: &Token, message: &str) {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Error, Debug)]
 pub enum LoxError {
+    #[error("Error Converting to sting from UTF8")]
+    FromUTF8(#[from] FromUtf8Error),
+    #[error("Error: {0}")]
+    Error(String),
+    #[error("Io Error")]
+    IoError(#[from] io::Error),
+    #[error("Error Parsing File")]
     Parse,
+    #[error("Runtime enrorn: Message: {message:?}")]
     Runtime { token: Token, message: String },
-}
-
-impl fmt::Display for LoxError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            LoxError::Parse => write!(f, "ParseError"),
-            LoxError::Runtime { message, token: _ } => write!(f, "RuntimeError {}", message),
-        }
-    }
 }

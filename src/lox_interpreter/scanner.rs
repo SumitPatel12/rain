@@ -1,7 +1,5 @@
-use anyhow::{Ok, Result};
-
 use super::{
-    error::report,
+    error::{report, LoxError},
     token::{self, Literal, Token, TokenType},
 };
 
@@ -30,7 +28,7 @@ impl Scanner {
         }
     }
 
-    pub fn scan_tokens(&mut self) -> Result<Vec<Token>> {
+    pub fn scan_tokens(&mut self) -> Result<Vec<Token>, LoxError> {
         while !self.is_at_end() {
             self.start = self.current;
             self.scan_token()?;
@@ -50,7 +48,7 @@ impl Scanner {
         self.current >= self.source.len()
     }
 
-    pub fn scan_token(&mut self) -> Result<()> {
+    pub fn scan_token(&mut self) -> Result<(), LoxError> {
         let col = self.column;
         let c = self.advance();
 
@@ -140,7 +138,7 @@ impl Scanner {
         char as char
     }
 
-    fn add_token(&mut self, token_type: TokenType, column: usize) -> Result<()> {
+    fn add_token(&mut self, token_type: TokenType, column: usize) -> Result<(), LoxError> {
         self.add_token_with_literal(token_type, Literal::None, column)?;
         Ok(())
     }
@@ -150,7 +148,7 @@ impl Scanner {
         token_type: TokenType,
         literal: Literal,
         column: usize,
-    ) -> Result<()> {
+    ) -> Result<(), LoxError> {
         let text = String::from_utf8(self.source[self.start..self.current].into())?;
         self.tokens
             .push(Token::new(token_type, text, literal, self.line, column));
@@ -179,7 +177,7 @@ impl Scanner {
         }
     }
 
-    fn read_string(&mut self, column: usize) -> Result<()> {
+    fn read_string(&mut self, column: usize) -> Result<(), LoxError> {
         while self.peek() != '"' && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;
@@ -208,7 +206,7 @@ impl Scanner {
         c >= '0' && c <= '9'
     }
 
-    fn read_number(&mut self, column: usize) -> Result<()> {
+    fn read_number(&mut self, column: usize) -> Result<(), LoxError> {
         while self.is_digit(self.peek()) {
             self.advance();
         }
@@ -244,7 +242,7 @@ impl Scanner {
         self.is_digit(c) || self.is_alphabetic(c)
     }
 
-    fn read_identifier(&mut self, column: usize) -> Result<()> {
+    fn read_identifier(&mut self, column: usize) -> Result<(), LoxError> {
         while self.is_alpha_numeric(self.peek()) {
             self.advance();
         }
