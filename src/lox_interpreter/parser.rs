@@ -26,15 +26,20 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Stmt, LoxError> {
-        let statment = if self.match_tokens(vec![TokenType::VAR]) {
+        let statement = if self.match_tokens(vec![TokenType::VAR]) {
             self.var_declaration()
         } else {
             self.statement()
         };
 
-        statment
-
         // TODO: Handle synchronize in case of parsing error.
+        match statement {
+            Err(LoxError::Parse) => {
+                self.synchronize();
+                Ok(Stmt::NONE)
+            }
+            other => other,
+        }
     }
 
     fn var_declaration(&mut self) -> Result<Stmt, LoxError> {
