@@ -25,12 +25,14 @@ pub fn report_parse_error(token: &Token, message: &str) {
 #[derive(Debug, Clone)]
 pub enum LoxError {
     Parse,
+    Runtime { token: Token, message: String },
 }
 
 impl fmt::Display for LoxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             LoxError::Parse => write!(f, "ParseError"),
+            LoxError::Runtime { message, token: _ } => write!(f, "RuntimeError {}", message),
         }
     }
 }

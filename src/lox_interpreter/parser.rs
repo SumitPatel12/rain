@@ -3,7 +3,7 @@ use crate::lox_interpreter::{ast_tools::ASTPrinter, scanner::Scanner};
 
 // TODO: The error reporting in my version is horrendous, fix it at some point!!
 use super::{
-    ast_tools::Expr,
+    ast_tools::{Expr, Stmt},
     error::{report_parse_error, LoxError},
     token::{Literal, Token, TokenType},
 };
@@ -19,12 +19,62 @@ impl Parser {
         Parser { tokens, current: 0 }
     }
 
-    pub fn parse(&mut self) -> Option<Expr> {
-        self.expression().ok()
+    pub fn parse(&mut self) -> Result<Vec<Stmt>> {
+        let mut statements: Vec<Stmt> = Vec::new();
+
+        while !self.is_at_end() {
+            statements.push(self.declaration()?);
+        }
+
+        Ok(statements)
+    }
+
+    fn declaration(&mut self) -> Result<Stmt> {
+        let statment = if self.match_tokens(vec![TokenType::VAR]) {
+            self.var_declaration()
+        } else {
+            self.statement()
+        };
+
+        statment
+
+        // TODO: Seems like anyhow is not a good idea for this the refactoring is not going to be
+        // pretty. I hate my life.
+        // match statment {
+        // ok => ok,
+        // Err(e) => match e.downcast_ref() {
+        // Some(LoxError::Parse) => {
+        // // self.synchronize();
+        // Ok(Stmt::NONE)
+        // }
+        // other => match other {
+        // Some(err) => bail!(err),
+        // None => bail!("Undefined Error."),
+        // },
+        // },
+        // }
+    }
+
+    fn var_declaration(&mut self) -> Result<Stmt> {
+        let name = self.consume(TokenType::IDENTIFIER, "Expected variable name.")?;
+
+        if self.match_tokens(vec![TokenType::EQUAL]) {
+            let initializer = self.expression()?;
+            self.consume(TokenType::SEMICOLON, "Expected ';' after variable name.")?;
+            return Ok(Stmt::Var {
+                name,
+                initializer: Some(initializer),
+            });
+        }
+
+        Ok(Stmt::Var {
+            name,
+            initializer: None,
+        })
     }
 
     fn expression(&mut self) -> Result<Expr> {
-        self.equality()
+        self.assignment()
     }
 
     fn equality(&mut self) -> Result<Expr> {
@@ -162,23 +212,32 @@ impl Parser {
             TokenType::TRUE => Expr::Literal {
                 value: Literal::Boolean(true),
             },
-            TokenType::NIL => Expr::Literal {
+            TokenType::NONE => Expr::Literal {
+                // TODO: Streamline use of None NIL and NULL.
                 value: Literal::None,
             },
             TokenType::STRING => Expr::Literal {
                 value: Literal::String(token.lexeme.clone()),
             },
-            TokenType::NUMBER => Expr::Literal {
-                // TODO: Check the performance implication of this. Maybe it'd be better to store
-                // a copy of the float in the enum itself.
-                value: Literal::Float(token.lexeme.parse::<f64>().unwrap()),
-            },
+            TokenType::NUMBER => {
+                Expr::Literal {
+                    // TODO: Check the performance implication of this. Maybe it'd be better to store
+                    // a copy of the float in the enum itself.
+                    value: Literal::Float(token.lexeme.parse::<f64>().unwrap()),
+                }
+            }
             TokenType::LEFT_PAREN => {
+                self.consume(TokenType::LEFT_PAREN, "Expected '('.")?;
                 let expr = self.expression()?;
                 self.consume(TokenType::RIGHT_PAREN, "Expected ')' after expression.")?;
                 Expr::Grouping {
                     expression: Box::new(expr),
                 }
+            }
+            TokenType::IDENTIFIER => {
+                return Ok(Expr::Variable {
+                    name: self.previous().clone(),
+                })
             }
             _ => return Err(anyhow!(self.error(token, "Expected Expression."))),
         };
@@ -222,6 +281,67 @@ impl Parser {
             };
         }
     }
+
+    fn statement(&mut self) -> Result<Stmt> {
+        if self.match_tokens(vec![TokenType::PRINT]) {
+            return self.print_statement();
+        }
+
+        if self.match_tokens(vec![TokenType::LEFT_BRACE]) {
+            return Ok(Stmt::Block {
+                statements: self.block()?,
+            });
+        }
+
+        self.expression_statement()
+    }
+
+    fn block(&mut self) -> Result<Vec<Stmt>> {
+        let mut statements: Vec<Stmt> = Vec::new();
+
+        while !self.check(TokenType::RIGHT_BRACE) && !self.is_at_end() {
+            statements.push(self.declaration()?);
+        }
+        self.consume(TokenType::RIGHT_BRACE, "Expected '}' after blcok.");
+        return Ok(statements);
+    }
+
+    fn print_statement(&mut self) -> Result<Stmt> {
+        let value = self.expression()?;
+        self.consume(TokenType::SEMICOLON, "Expected ';' after value.")?;
+
+        Ok(Stmt::Print { expresson: value })
+    }
+
+    fn expression_statement(&mut self) -> Result<Stmt> {
+        let expr = self.expression()?;
+        self.consume(TokenType::SEMICOLON, "Expected ';' after value.")?;
+
+        Ok(Stmt::Expression { expression: expr })
+    }
+
+    fn assignment(&mut self) -> Result<Expr> {
+        let expr = self.equality()?;
+
+        if self.match_tokens(vec![TokenType::EQUAL]) {
+            // NOTE: If you change the ordering it complains that immuatble borrow occurs before
+            // mutalbe borrow hence, you cannot do that.
+            let value = self.expression()?;
+            let equals = self.previous();
+
+            match expr {
+                Expr::Variable { name } => {
+                    return Ok(Expr::Assign {
+                        name,
+                        value: Box::new(value),
+                    })
+                }
+                _ => return Err(anyhow!(self.error(equals, "Invalid assignment target."))),
+            }
+        }
+
+        return Ok(expr);
+    }
 }
 
 #[test]
@@ -231,8 +351,8 @@ pub fn test_parser() -> Result<()> {
 
     let mut parser = Parser::new(tokens);
     let expression = parser.parse().expect("Could not parse sample code.");
-    let printer = ASTPrinter::new();
+    let mut printer = ASTPrinter::new();
 
-    assert_eq!(printer.print(expression), "(* (- 123) 45.67)");
+    assert_eq!(printer.print(expression).unwrap(), "(* (- 123) 45.67)");
     return Ok(());
 }

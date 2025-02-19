@@ -40,7 +40,7 @@ pub enum TokenType {
     FUN,
     FOR,
     IF,
-    NIL,
+    NONE,
     OR,
     PRINT,
     RETURN,
@@ -61,7 +61,7 @@ const KEYWORDS: [(&str, TokenType); 16] = [
     ("for", TokenType::FOR),
     ("fun", TokenType::FUN),
     ("if", TokenType::IF),
-    ("nil", TokenType::NIL),
+    ("nil", TokenType::NONE),
     ("or", TokenType::OR),
     ("print", TokenType::PRINT),
     ("return", TokenType::RETURN),
@@ -134,7 +134,7 @@ impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{:?} {} {:?}",
+            "Token Strat: Token Type: {:?} Lexeme: {} Literal: {:?}",
             self.token_type, self.lexeme, self.literal
         )
     }
