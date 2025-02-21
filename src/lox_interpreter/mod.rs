@@ -58,17 +58,18 @@ impl Lox {
     pub fn run(&self, source: Vec<u8>) -> Result<(), LoxError> {
         let mut scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens()?;
-        // println!("{:#?}", tokens);
+        //println!("Tokens: {:#?}", tokens);
 
         let mut parser = Parser::new(tokens);
         // TODO: I should not be escalating the error here, but for now it's fine.
         let statements = parser.parse()?;
 
         if self.had_error {
-            println!("Got An Error.");
+            //println!("Got An Error.");
             return Err(LoxError::Error("Error running.".to_string()));
         }
 
+        //println!("Statements: {:#?}", statements);
         let mut intpereter = Interpreter::new();
         intpereter.interpret(statements)?;
 

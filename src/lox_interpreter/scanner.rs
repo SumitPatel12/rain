@@ -8,11 +8,17 @@ use super::{
 const VARIABLE_NAME_REGEX: &str = r"[a-zA-Z_][a-zA-Z_0_9]";
 
 pub struct Scanner {
+    // Source file.
     source: Vec<u8>,
+    // Tokens that have been scanned.
     tokens: Vec<Token>,
+    // Start of the current token.
     start: usize,
+    // Position of cursor while scanning the current token.
     current: usize,
+    // Column of the cursor in the current line.
     column: usize,
+    // Line of the file the cursor is at.
     line: usize,
 }
 
@@ -152,6 +158,7 @@ impl Scanner {
         let text = String::from_utf8(self.source[self.start..self.current].into())?;
         self.tokens
             .push(Token::new(token_type, text, literal, self.line, column));
+
         Ok(())
     }
 

@@ -32,12 +32,16 @@ impl Environment {
 
     pub fn get(&self, name: &Token) -> Result<Object, LoxError> {
         let key = &name.lexeme;
+        //println!("Trying to get value from environment for key: {}", key);
         if let Some(value) = self.values.get(key) {
+            //println!("GOT VALUE.");
             Ok(value.clone())
         } else {
             if let Some(ref enclosing) = self.enclosing {
+                //println!("Trying outer scope.");
                 enclosing.borrow().get(name)
             } else {
+                //println!("In Error get.");
                 Err(LoxError::Runtime {
                     token: name.clone(),
                     message: format!("Undefined variable: {}", key),

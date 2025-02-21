@@ -6,7 +6,9 @@ use super::{
 };
 
 pub struct Parser {
+    // Tokens scanner provided that we need to parse.
     tokens: Vec<Token>,
+    // The current token we are at while parsing.
     current: usize,
 }
 
@@ -26,6 +28,10 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Stmt, LoxError> {
+        //println!(
+        //"Current Token: {}\n{}",
+        //self.current, self.tokens[self.current]
+        //);
         let statement = if self.match_tokens(vec![TokenType::VAR]) {
             self.var_declaration()
         } else {
@@ -35,6 +41,7 @@ impl Parser {
         // TODO: Handle synchronize in case of parsing error.
         match statement {
             Err(LoxError::Parse) => {
+                println!("Parse Error. Trying to synchronize.");
                 self.synchronize();
                 Ok(Stmt::NONE)
             }
@@ -45,19 +52,15 @@ impl Parser {
     fn var_declaration(&mut self) -> Result<Stmt, LoxError> {
         let name = self.consume(TokenType::IDENTIFIER, "Expected variable name.")?;
 
-        if self.match_tokens(vec![TokenType::EQUAL]) {
-            let initializer = self.expression()?;
-            self.consume(TokenType::SEMICOLON, "Expected ';' after variable name.")?;
-            return Ok(Stmt::Var {
-                name,
-                initializer: Some(initializer),
-            });
-        }
+        let initializer = if self.match_tokens(vec![TokenType::EQUAL]) {
+            //println!("Parser:\nInitializer: {}", init);
+            Some(self.expression()?)
+        } else {
+            None
+        };
 
-        Ok(Stmt::Var {
-            name,
-            initializer: None,
-        })
+        self.consume(TokenType::SEMICOLON, "Expected ';' after variable name.")?;
+        Ok(Stmt::Var { name, initializer })
     }
 
     fn expression(&mut self) -> Result<Expr, LoxError> {
@@ -213,6 +216,9 @@ impl Parser {
                     value: Literal::Float(token.lexeme.parse::<f64>().unwrap()),
                 }
             }
+            TokenType::IDENTIFIER => Expr::Variable {
+                name: self.peek().clone(),
+            },
             TokenType::LEFT_PAREN => {
                 self.consume(TokenType::LEFT_PAREN, "Expected '('.")?;
                 let expr = self.expression()?;
@@ -221,11 +227,7 @@ impl Parser {
                     expression: Box::new(expr),
                 }
             }
-            TokenType::IDENTIFIER => {
-                return Ok(Expr::Variable {
-                    name: self.previous().clone(),
-                })
-            }
+
             _ => return Err(self.error(token, "Expected Expression.")),
         };
         self.advance();
@@ -251,7 +253,7 @@ impl Parser {
         self.advance();
 
         while !self.is_at_end() {
-            if self.previous().clone().token_type == TokenType::SEMICOLON {
+            if self.previous().token_type == TokenType::SEMICOLON {
                 return;
             }
 
@@ -270,17 +272,45 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Stmt, LoxError> {
-        if self.match_tokens(vec![TokenType::PRINT]) {
+        if self.match_tokens(vec![TokenType::IF]) {
+            return self.if_statement();
+        } else if self.match_tokens(vec![TokenType::PRINT]) {
             return self.print_statement();
-        }
-
-        if self.match_tokens(vec![TokenType::LEFT_BRACE]) {
+        } else if self.match_tokens(vec![TokenType::LEFT_BRACE]) {
             return Ok(Stmt::Block {
                 statements: self.block()?,
             });
+        } else if self.match_tokens(vec![TokenType::WHILE]) {
+            return self.while_statement();
+        } else if self.match_tokens(vec![TokenType::FOR]) {
+            return self.for_statement();
         }
 
         self.expression_statement()
+    }
+
+    fn if_statement(&mut self) -> Result<Stmt, LoxError> {
+        self.consume(TokenType::LEFT_PAREN, "Expected '(' after if.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RIGHT_PAREN, "Expected ')' after if condition.")?;
+
+        let then_branch = self.statement()?;
+
+        // TODO: I think this can be cleaner, but can't think of anything right now.
+        if self.match_tokens(vec![TokenType::ELSE]) {
+            let else_branch = Some(self.statement()?);
+            Ok(Stmt::If {
+                condition,
+                then_branch: Box::new(then_branch),
+                else_branch: Box::new(else_branch),
+            })
+        } else {
+            Ok(Stmt::If {
+                condition,
+                then_branch: Box::new(then_branch),
+                else_branch: Box::new(None),
+            })
+        }
     }
 
     fn block(&mut self) -> Result<Vec<Stmt>, LoxError> {
@@ -295,6 +325,13 @@ impl Parser {
 
     fn print_statement(&mut self) -> Result<Stmt, LoxError> {
         let value = self.expression()?;
+        //println!("Parser:");
+        //println!(
+        //"\nCurrent Token: {}\n{}\n",
+        //self.current, self.tokens[self.current]
+        //);
+        //println!("Next Token: {}", self.peek());
+        //println!("In Print Value: {}", value);
         self.consume(TokenType::SEMICOLON, "Expected ';' after value.")?;
 
         Ok(Stmt::Print { expression: value })
@@ -308,13 +345,17 @@ impl Parser {
     }
 
     fn assignment(&mut self) -> Result<Expr, LoxError> {
-        let expr = self.equality()?;
+        let expr = self.or()?;
 
         if self.match_tokens(vec![TokenType::EQUAL]) {
             // NOTE: If you change the ordering it complains that immuatble borrow occurs before
             // mutalbe borrow hence, you cannot do that.
-            let value = self.expression()?;
-            let equals = self.previous();
+            // Finally got why you can't do it. It's simile, equals holds the reference to self as
+            // I'm returning a reference, and  that leads to the clash.
+            // If I clone the value then it would not comlain.
+            // Clonig is the other solution.
+            let equals = self.previous().clone();
+            let value = self.assignment()?;
 
             match expr {
                 Expr::Variable { name } => {
@@ -323,23 +364,117 @@ impl Parser {
                         value: Box::new(value),
                     })
                 }
-                _ => return Err(self.error(equals, "Invalid assignment target.")),
+                _ => return Err(self.error(&equals, "Invalid assignment target.")),
             }
+        }
+
+        Ok(expr)
+    }
+
+    fn or(&mut self) -> Result<Expr, LoxError> {
+        let expr = self.and()?;
+
+        while self.match_tokens(vec![TokenType::OR]) {
+            let operator = self.previous().clone();
+            let right = Box::new(self.and()?);
+
+            return Ok(Expr::Logical {
+                left: Box::new(expr),
+                operator,
+                right,
+            });
         }
 
         return Ok(expr);
     }
-}
 
-#[test]
-pub fn test_parser() -> Result<(), LoxError> {
-    // TODO: I've got no Idea what to expect here now.
+    fn and(&mut self) -> Result<Expr, LoxError> {
+        let expr = self.equality()?;
 
-    //let mut scanner = Scanner::new("-123 * 45.67".into());
-    //let tokens = scanner.scan_tokens()?;
-    //let mut parser = Parser::new(tokens);
-    //let expression = parser.parse().expect("Could not parse sample code.");
-    //let mut printer = ASTPrinter::new();
-    //assert_eq!(printer.print(expression).unwrap(), "(* (- 123) 45.67)");
-    return Ok(());
+        while self.match_tokens(vec![TokenType::AND]) {
+            let operator = self.previous().clone();
+            let right = Box::new(self.equality()?);
+
+            return Ok(Expr::Logical {
+                left: Box::new(expr),
+                operator,
+                right,
+            });
+        }
+
+        Ok(expr)
+    }
+
+    fn while_statement(&mut self) -> Result<Stmt, LoxError> {
+        self.consume(TokenType::LEFT_PAREN, "Expect '(' after 'while'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RIGHT_PAREN, "Expect ')' after condition.")?;
+        let body = Box::new(self.statement()?);
+        Ok(Stmt::While { condition, body })
+    }
+
+    fn for_statement(&mut self) -> Result<Stmt, LoxError> {
+        self.consume(TokenType::LEFT_PAREN, "Expect '(' after 'for'.")?;
+
+        // Check if we got an initializtion, i.e. var x = 0 or something of the like.
+        let initializer = if self.match_tokens(vec![TokenType::SEMICOLON]) {
+            None
+        } else if self.match_tokens(vec![TokenType::VAR]) {
+            Some(self.var_declaration()?)
+        } else {
+            Some(self.expression_statement()?)
+        };
+
+        // Check if we got the condition to loop over.
+        let condition = if !self.check(TokenType::SEMICOLON) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(TokenType::SEMICOLON, "Expected ';' after loop condition.")?;
+
+        // Chek if we got the increment condition, x++ and the like.
+        let increment = if !self.check(TokenType::RIGHT_PAREN) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(TokenType::RIGHT_PAREN, "Expected ')' after for clauses.")?;
+
+        // For loop body.
+        let mut body = self.statement()?;
+
+        // NOTE: Now begins the fun part. We do not use a new Stmt visitor or something for this,
+        // we just convert it to the matching while loop and we already got while in place.
+        // What we do is:
+        //  1. Get the increment statement
+        //  2. Make a block with the body and increment statement, essentially attach the increment
+        //     statement to the for block.
+        //  3. Make a while statement with the condition and the body the we got after
+        //     concatenation from step 2.
+        //  4. Get the initialization statement.
+        //  5. Create a new Block statement that does the initialization once and then executes the
+        //     While loop.
+        if let Some(incr) = increment {
+            let increment_statement = Stmt::Expression { expression: incr };
+            body = Stmt::Block {
+                statements: vec![body, increment_statement],
+            }
+        }
+
+        body = Stmt::While {
+            condition: condition.unwrap_or(Expr::Literal {
+                value: Literal::Boolean(true),
+            }),
+            body: Box::new(body),
+        };
+
+        if let Some(initializon_statement) = initializer {
+            body = Stmt::Block {
+                statements: vec![initializon_statement, body],
+            }
+        }
+
+        Ok(body)
+    }
 }

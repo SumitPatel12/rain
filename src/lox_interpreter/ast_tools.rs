@@ -1,3 +1,5 @@
+use std::fmt;
+
 // NOTE: I really don't know where the calss generation is taknig me, will skip that for now and
 // see where it takes me.
 use super::{error::LoxError, token::Token};
@@ -28,13 +30,25 @@ pub mod expr {
             name: &Token,
             value: &Expr,
         ) -> Result<T, LoxError>;
+        fn visit_logical_expression(
+            &mut self,
+            left: &Expr,
+            operator: &Token,
+            right: &Expr,
+        ) -> Result<T, LoxError>;
     }
 }
 
 // NOTE: I tried using a trait for Expr and it's not a good idea. You run into the exact problem
 // you're trying to avoid, implementing something for every "class".
+#[derive(Debug)]
 pub enum Expr {
     Binary {
+        left: Box<Expr>,
+        operator: Token,
+        right: Box<Expr>,
+    },
+    Logical {
         left: Box<Expr>,
         operator: Token,
         right: Box<Expr>,
@@ -58,6 +72,12 @@ pub enum Expr {
     },
 }
 
+impl fmt::Display for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 impl Expr {
     pub fn accept<T>(&self, visitor: &mut dyn expr::Visitor<T>) -> Result<T, LoxError> {
         match self {
@@ -72,6 +92,11 @@ impl Expr {
             // TODO: Add relevant visitor methods.
             Expr::Assign { name, value } => visitor.visit_assignment_expression(name, value),
             Expr::Variable { name } => visitor.visit_variable_expr(name),
+            Expr::Logical {
+                left,
+                operator,
+                right,
+            } => visitor.visit_logical_expression(left, operator, right),
         }
     }
 }
@@ -89,12 +114,28 @@ pub mod stmt {
             name: &Token,
             initializer: &Option<Expr>,
         ) -> Result<T, LoxError>;
+        fn visit_if_statement(
+            &mut self,
+            condition: &Expr,
+            then_branch: &Stmt,
+            else_branch: &Option<Stmt>,
+        ) -> Result<T, LoxError>;
+        fn visit_while_statement(
+            &mut self,
+            condition: &Expr,
+            body: &Box<Stmt>,
+        ) -> Result<T, LoxError>;
     }
 }
 
+#[derive(Debug)]
 pub enum Stmt {
     Block {
         statements: Vec<Stmt>,
+    },
+    While {
+        condition: Expr,
+        body: Box<Stmt>,
     },
     Expression {
         expression: Expr,
@@ -105,6 +146,11 @@ pub enum Stmt {
     Var {
         name: Token,
         initializer: Option<Expr>,
+    },
+    If {
+        condition: Expr,
+        then_branch: Box<Stmt>,
+        else_branch: Box<Option<Stmt>>,
     },
     NONE,
 }
@@ -118,7 +164,13 @@ impl Stmt {
                 expression: expresson,
             } => visitor.visit_print_stmt(expresson),
             Stmt::Var { name, initializer } => visitor.visit_var_stmt(name, initializer),
-            Stmt::NONE => todo!(),
+            Stmt::NONE => unimplemented!(),
+            Stmt::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => visitor.visit_if_statement(condition, then_branch, else_branch),
+            Stmt::While { condition, body } => visitor.visit_while_statement(condition, body),
         }
     }
 }
@@ -160,6 +212,17 @@ impl expr::Visitor<String> for ASTPrinter {
         value: &Expr,
     ) -> Result<String, LoxError> {
         self.parenthesize(name.lexeme.clone(), vec![value])
+    }
+
+    // TODO: Do I really want to develop the printer class any further?
+    #[allow(unused)]
+    fn visit_logical_expression(
+        &mut self,
+        left: &Expr,
+        operator: &Token,
+        right: &Expr,
+    ) -> Result<String, LoxError> {
+        todo!()
     }
 }
 

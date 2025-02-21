@@ -51,6 +51,15 @@ impl Interpreter {
         }
     }
 
+    fn stringify(&self, object: Object) -> String {
+        match object {
+            Object::NONE => "None".to_string(),
+            Object::Number(n) => n.to_string(),
+            Object::Boolean(b) => b.to_string(),
+            Object::String(s) => s,
+        }
+    }
+
     pub fn interpret(&mut self, statements: Vec<Stmt>) -> Result<(), LoxError> {
         for stmt in statements {
             self.execute(&stmt)?
@@ -81,16 +90,6 @@ impl Interpreter {
             token: operator.clone(),
             message: error_message,
         })
-    }
-
-    #[allow(dead_code)]
-    fn stringify(&self, object: Object) -> String {
-        match object {
-            Object::NONE => "nil".to_string(),
-            Object::Number(n) => n.to_string(),
-            Object::Boolean(b) => b.to_string(),
-            Object::String(s) => s,
-        }
     }
 
     fn execute(&mut self, stmt: &Stmt) -> Result<(), LoxError> {
@@ -246,6 +245,27 @@ impl expr::Visitor<Object> for Interpreter {
         self.environment.borrow_mut().assign(name, value.clone())?;
         Ok(value)
     }
+
+    fn visit_logical_expression(
+        &mut self,
+        left: &Expr,
+        operator: &Token,
+        right: &Expr,
+    ) -> Result<Object, LoxError> {
+        let left_value = self.evaluate(left)?;
+
+        if operator.token_type == TokenType::OR {
+            if self.is_truthly(&left_value) {
+                return Ok(left_value);
+            }
+        } else {
+            if !self.is_truthly(&left_value) {
+                return Ok(left_value);
+            }
+        }
+
+        self.evaluate(right)
+    }
 }
 
 impl stmt::Visitor<()> for Interpreter {
@@ -269,7 +289,7 @@ impl stmt::Visitor<()> for Interpreter {
 
     fn visit_print_stmt(&mut self, expression: &Expr) -> Result<(), LoxError> {
         let value = self.evaluate(expression)?;
-        println!("Value: {}", value.to_string());
+        println!("Visiting Print Statement: {}", self.stringify(value));
         Ok(())
     }
 
@@ -289,5 +309,41 @@ impl stmt::Visitor<()> for Interpreter {
                 return Ok(());
             }
         }
+    }
+
+    fn visit_if_statement(
+        &mut self,
+        condition: &Expr,
+        then_branch: &Stmt,
+        else_branch: &Option<Stmt>,
+    ) -> Result<(), LoxError> {
+        let value = self.evaluate(condition)?;
+        if self.is_truthly(&value) {
+            self.execute(then_branch)?;
+        } else if let Some(else_branch) = else_branch {
+            self.execute(else_branch)?;
+        }
+
+        Ok(())
+    }
+
+    fn visit_while_statement(
+        &mut self,
+        condition: &Expr,
+        body: &Box<Stmt>,
+    ) -> Result<(), LoxError> {
+        // NOTE: Once again if you're thinking of using something like
+        // `self.is_trutly(&self.evalutate(condition)?)`
+        // Think again. We're trying to borrow mutalby return it's referece inside of a function
+        // that is immutbly borrowing the class. So, it's gonna complain.
+        // You see assigning the value ends the borrow as we surrender the ownership to the local
+        // variable, but directly calling it withing the function does not.
+        let mut condition_value = self.evaluate(condition)?;
+        while self.is_truthly(&condition_value) {
+            self.execute(body)?;
+            condition_value = self.evaluate(condition)?;
+        }
+
+        Ok(())
     }
 }
