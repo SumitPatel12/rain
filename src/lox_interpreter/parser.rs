@@ -28,10 +28,6 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Stmt, LoxError> {
-        //println!(
-        //"Current Token: {}\n{}",
-        //self.current, self.tokens[self.current]
-        //);
         let statement = if self.match_tokens(vec![TokenType::VAR]) {
             self.var_declaration()
         } else {
@@ -53,7 +49,6 @@ impl Parser {
         let name = self.consume(TokenType::IDENTIFIER, "Expected variable name.")?;
 
         let initializer = if self.match_tokens(vec![TokenType::EQUAL]) {
-            //println!("Parser:\nInitializer: {}", init);
             Some(self.expression()?)
         } else {
             None
@@ -222,7 +217,13 @@ impl Parser {
             TokenType::LEFT_PAREN => {
                 self.consume(TokenType::LEFT_PAREN, "Expected '('.")?;
                 let expr = self.expression()?;
-                self.consume(TokenType::RIGHT_PAREN, "Expected ')' after expression.")?;
+
+                // NOTE: If we consume here then the next self.advance will consume the semicolon,
+                // it's gonna lead to problems down the line.
+                let token = self.peek();
+                if token.token_type != TokenType::RIGHT_PAREN {
+                    self.error(token, "Expected ')' after expression.");
+                }
                 Expr::Grouping {
                     expression: Box::new(expr),
                 }
@@ -325,13 +326,6 @@ impl Parser {
 
     fn print_statement(&mut self) -> Result<Stmt, LoxError> {
         let value = self.expression()?;
-        //println!("Parser:");
-        //println!(
-        //"\nCurrent Token: {}\n{}\n",
-        //self.current, self.tokens[self.current]
-        //);
-        //println!("Next Token: {}", self.peek());
-        //println!("In Print Value: {}", value);
         self.consume(TokenType::SEMICOLON, "Expected ';' after value.")?;
 
         Ok(Stmt::Print { expression: value })
