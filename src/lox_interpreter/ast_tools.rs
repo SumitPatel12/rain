@@ -156,6 +156,7 @@ pub enum Stmt {
 }
 
 impl Stmt {
+    /// Used to direct the flow to the correct visitor function.
     pub fn accept<T>(&self, visitor: &mut dyn stmt::Visitor<T>) -> Result<T, LoxError> {
         match self {
             Stmt::Block { statements } => visitor.visit_block_stmt(statements),
