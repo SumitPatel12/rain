@@ -52,4 +52,3 @@ unary          → ( "!" | "-" ) unary
 primary        → NUMBER | STRING | "true" | "false" | "nil"
                | "(" expression ")" ;
 ```
-As of chapter 6 we're using the same precedence rules as C.

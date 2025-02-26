@@ -70,7 +70,7 @@ impl Lox {
             return Err(LoxError::Error("Error running.".to_string()));
         }
 
-        //println!("Statements: {:#?}", statements);
+        println!("Statements: {:#?}", statements);
         let mut intpereter = Interpreter::new();
         intpereter.interpret(statements)?;
 

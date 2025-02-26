@@ -125,11 +125,15 @@ pub mod stmt {
             condition: &Expr,
             body: &Box<Stmt>,
         ) -> Result<T, LoxError>;
+        fn visit_break_statement(&mut self) -> Result<T, LoxError>;
+        fn visit_continue_statement(&mut self) -> Result<T, LoxError>;
     }
 }
 
 #[derive(Debug)]
 pub enum Stmt {
+    Break,
+    Continue,
     Block {
         statements: Vec<Stmt>,
     },
@@ -172,6 +176,8 @@ impl Stmt {
                 else_branch,
             } => visitor.visit_if_statement(condition, then_branch, else_branch),
             Stmt::While { condition, body } => visitor.visit_while_statement(condition, body),
+            Stmt::Break => visitor.visit_break_statement(),
+            Stmt::Continue => visitor.visit_continue_statement(),
         }
     }
 }

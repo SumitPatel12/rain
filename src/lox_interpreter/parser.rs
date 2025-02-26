@@ -37,7 +37,6 @@ impl Parser {
         // TODO: Handle synchronize in case of parsing error.
         match statement {
             Err(LoxError::Parse) => {
-                println!("Parse Error. Trying to synchronize.");
                 self.synchronize();
                 Ok(Stmt::NONE)
             }
@@ -273,7 +272,13 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Stmt, LoxError> {
-        if self.match_tokens(vec![TokenType::IF]) {
+        if self.match_tokens(vec![TokenType::BREAK]) {
+            self.consume(TokenType::SEMICOLON, "Expected ';' after break")?;
+            return Ok(Stmt::Break);
+        } else if self.match_tokens(vec![TokenType::CONTINUE]) {
+            self.consume(TokenType::SEMICOLON, "Expected ';' after continue.")?;
+            return Ok(Stmt::Continue);
+        } else if self.match_tokens(vec![TokenType::IF]) {
             return self.if_statement();
         } else if self.match_tokens(vec![TokenType::PRINT]) {
             return self.print_statement();

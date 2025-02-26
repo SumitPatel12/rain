@@ -35,4 +35,8 @@ pub enum LoxError {
     Parse,
     #[error("Runtime enrorn: Message: {message:?}")]
     Runtime { token: Token, message: String },
+    #[error("Break Statement")]
+    BreakStmtError,
+    #[error("Continue Statement")]
+    ContinueStmtError,
 }

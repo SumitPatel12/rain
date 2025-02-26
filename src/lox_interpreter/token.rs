@@ -50,10 +50,12 @@ pub enum TokenType {
     VAR,
     WHILE,
     EOF,
+    BREAK,
+    CONTINUE,
 }
 
 // TODO: Check if this is the correct way to do this.
-const KEYWORDS: [(&str, TokenType); 16] = [
+const KEYWORDS: [(&str, TokenType); 18] = [
     ("and", TokenType::AND),
     ("class", TokenType::CLASS),
     ("else", TokenType::ELSE),
@@ -70,6 +72,8 @@ const KEYWORDS: [(&str, TokenType); 16] = [
     ("true", TokenType::TRUE),
     ("var", TokenType::VAR),
     ("while", TokenType::WHILE),
+    ("break", TokenType::BREAK),
+    ("continue", TokenType::CONTINUE),
 ];
 
 pub fn lookup_keyword(keyword: String) -> Option<TokenType> {

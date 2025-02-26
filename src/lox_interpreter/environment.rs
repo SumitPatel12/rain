@@ -3,11 +3,12 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use super::{error::LoxError, interpreter::Object, token::Token};
 
 pub struct Environment {
-    // NOTE: Without Box or Rc it comlains about struct having infinite size.
+    // NOTE: Without Box or Rc it complains about struct having infinite size.
     // Going with Rc cause it seemed like the right call to have it under a mutex, i.e. all blocks
     // share the same parent kind of thing.
     enclosing: Option<Rc<RefCell<Environment>>>,
     values: HashMap<String, Object>,
+    pub is_enclosed_in_loop: bool,
 }
 
 impl Environment {
@@ -15,6 +16,7 @@ impl Environment {
         Environment {
             enclosing: None,
             values: HashMap::new(),
+            is_enclosed_in_loop: false,
         }
     }
 
@@ -27,6 +29,7 @@ impl Environment {
         Environment {
             enclosing: Some(Rc::clone(enclosing)),
             values: HashMap::new(),
+            is_enclosed_in_loop: enclosing.borrow().is_enclosed_in_loop,
         }
     }
 

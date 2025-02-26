@@ -1,0 +1,20 @@
+var a = 0;
+
+while (a < 5) {
+	a = a + 1;
+	print "After increment";
+
+	if (a == 2) {
+		continue;
+	}
+
+	if (a > 3) {
+		break;
+	}
+	print "After break and continue";
+	print a;
+}
+
+break;
+print "Outside While After Break";
+print a;

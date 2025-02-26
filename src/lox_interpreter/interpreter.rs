@@ -110,11 +110,13 @@ impl Interpreter {
             for statement in statements {
                 self.execute(statement)?
             }
+
             Ok(())
         };
 
         let result = execue_statements();
         self.environment = previous;
+
         result
     }
 }
@@ -339,11 +341,37 @@ impl stmt::Visitor<()> for Interpreter {
         // You see assigning the value ends the borrow as we surrender the ownership to the local
         // variable, but directly calling it withing the function does not.
         let mut condition_value = self.evaluate(condition)?;
+        self.environment.borrow_mut().is_enclosed_in_loop = true;
         while self.is_truthly(&condition_value) {
-            self.execute(body)?;
-            condition_value = self.evaluate(condition)?;
+            let body_execution_result = self.execute(body);
+            if let Err(LoxError::BreakStmtError) = body_execution_result {
+                break;
+            } else if let Err(LoxError::ContinueStmtError) = body_execution_result {
+                condition_value = self.evaluate(condition)?;
+                continue;
+            } else {
+                condition_value = self.evaluate(condition)?;
+            }
         }
 
+        // This most certainly would have performance overheads, but I can't think of anything
+        // more graceful.
+        self.environment.borrow_mut().is_enclosed_in_loop = false;
+
         Ok(())
+    }
+
+    fn visit_break_statement(&mut self) -> Result<(), LoxError> {
+        if self.environment.borrow().is_enclosed_in_loop {
+            return Err(LoxError::BreakStmtError);
+        }
+        return Ok(());
+    }
+
+    fn visit_continue_statement(&mut self) -> Result<(), LoxError> {
+        if self.environment.borrow().is_enclosed_in_loop {
+            return Err(LoxError::ContinueStmtError);
+        }
+        return Ok(());
     }
 }
