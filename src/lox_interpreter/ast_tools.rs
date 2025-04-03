@@ -25,23 +25,25 @@ pub mod expr {
         fn visit_literal_expr(&mut self, value: &Literal) -> Result<T, LoxError>;
         fn visit_unary_expr(&mut self, operator: &Token, right: &Expr) -> Result<T, LoxError>;
         fn visit_variable_expr(&mut self, name: &Token) -> Result<T, LoxError>;
-        fn visit_assignment_expression(
-            &mut self,
-            name: &Token,
-            value: &Expr,
-        ) -> Result<T, LoxError>;
-        fn visit_logical_expression(
+        fn visit_assignment_expr(&mut self, name: &Token, value: &Expr) -> Result<T, LoxError>;
+        fn visit_logical_expr(
             &mut self,
             left: &Expr,
             operator: &Token,
             right: &Expr,
+        ) -> Result<T, LoxError>;
+        fn visit_call_expr(
+            &mut self,
+            callee: &Expr,
+            pren: &Token,
+            arguments: &Vec<Expr>,
         ) -> Result<T, LoxError>;
     }
 }
 
 // NOTE: I tried using a trait for Expr and it's not a good idea. You run into the exact problem
 // you're trying to avoid, implementing something for every "class".
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     Binary {
         left: Box<Expr>,
@@ -70,6 +72,11 @@ pub enum Expr {
     Variable {
         name: Token,
     },
+    Call {
+        callee: Box<Expr>,
+        paren: Token,
+        arguments: Vec<Expr>,
+    },
 }
 
 impl fmt::Display for Expr {
@@ -90,13 +97,18 @@ impl Expr {
             Expr::Literal { value } => visitor.visit_literal_expr(value),
             Expr::Unary { operator, right } => visitor.visit_unary_expr(operator, right),
             // TODO: Add relevant visitor methods.
-            Expr::Assign { name, value } => visitor.visit_assignment_expression(name, value),
+            Expr::Assign { name, value } => visitor.visit_assignment_expr(name, value),
             Expr::Variable { name } => visitor.visit_variable_expr(name),
             Expr::Logical {
                 left,
                 operator,
                 right,
-            } => visitor.visit_logical_expression(left, operator, right),
+            } => visitor.visit_logical_expr(left, operator, right),
+            Expr::Call {
+                callee,
+                paren,
+                arguments,
+            } => visitor.visit_call_expr(callee, paren, arguments),
         }
     }
 }
@@ -125,12 +137,23 @@ pub mod stmt {
             condition: &Expr,
             body: &Box<Stmt>,
         ) -> Result<T, LoxError>;
-        fn visit_break_statement(&mut self) -> Result<T, LoxError>;
-        fn visit_continue_statement(&mut self) -> Result<T, LoxError>;
+        fn visit_break_stmt(&mut self) -> Result<T, LoxError>;
+        fn visit_continue_stmt(&mut self) -> Result<T, LoxError>;
+        fn visit_function_stmt(
+            &mut self,
+            name: &Token,
+            paramaters: &Vec<Token>,
+            body: &Vec<Stmt>,
+        ) -> Result<T, LoxError>;
+        fn visit_return_stmt(
+            &mut self,
+            keyword: &Token,
+            value: &Option<Expr>,
+        ) -> Result<T, LoxError>;
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Stmt {
     Break,
     Continue,
@@ -156,6 +179,15 @@ pub enum Stmt {
         then_branch: Box<Stmt>,
         else_branch: Box<Option<Stmt>>,
     },
+    Function {
+        name: Token,
+        paramaters: Vec<Token>,
+        body: Vec<Stmt>,
+    },
+    Return {
+        keyword: Token,
+        value: Option<Expr>,
+    },
     NONE,
 }
 
@@ -176,8 +208,14 @@ impl Stmt {
                 else_branch,
             } => visitor.visit_if_statement(condition, then_branch, else_branch),
             Stmt::While { condition, body } => visitor.visit_while_statement(condition, body),
-            Stmt::Break => visitor.visit_break_statement(),
-            Stmt::Continue => visitor.visit_continue_statement(),
+            Stmt::Break => visitor.visit_break_stmt(),
+            Stmt::Continue => visitor.visit_continue_stmt(),
+            Stmt::Function {
+                name,
+                paramaters,
+                body,
+            } => visitor.visit_function_stmt(name, paramaters, body),
+            Stmt::Return { keyword, value } => visitor.visit_return_stmt(keyword, value),
         }
     }
 }
@@ -213,21 +251,27 @@ impl expr::Visitor<String> for ASTPrinter {
         Ok(name.lexeme.clone())
     }
 
-    fn visit_assignment_expression(
-        &mut self,
-        name: &Token,
-        value: &Expr,
-    ) -> Result<String, LoxError> {
+    fn visit_assignment_expr(&mut self, name: &Token, value: &Expr) -> Result<String, LoxError> {
         self.parenthesize(name.lexeme.clone(), vec![value])
     }
 
     // TODO: Do I really want to develop the printer class any further?
     #[allow(unused)]
-    fn visit_logical_expression(
+    fn visit_logical_expr(
         &mut self,
         left: &Expr,
         operator: &Token,
         right: &Expr,
+    ) -> Result<String, LoxError> {
+        todo!()
+    }
+
+    #[allow(unused)]
+    fn visit_call_expr(
+        &mut self,
+        callee: &Expr,
+        pren: &Token,
+        arguments: &Vec<Expr>,
     ) -> Result<String, LoxError> {
         todo!()
     }

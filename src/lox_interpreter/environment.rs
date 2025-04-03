@@ -2,6 +2,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use super::{error::LoxError, interpreter::Object, token::Token};
 
+#[derive(Debug)]
 pub struct Environment {
     // NOTE: Without Box or Rc it complains about struct having infinite size.
     // Going with Rc cause it seemed like the right call to have it under a mutex, i.e. all blocks

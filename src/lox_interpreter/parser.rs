@@ -30,6 +30,8 @@ impl Parser {
     fn declaration(&mut self) -> Result<Stmt, LoxError> {
         let statement = if self.match_tokens(vec![TokenType::VAR]) {
             self.var_declaration()
+        } else if self.match_tokens(vec![TokenType::FUN]) {
+            self.function()
         } else {
             self.statement()
         };
@@ -184,7 +186,22 @@ impl Parser {
             });
         }
 
-        self.primary()
+        self.call()
+    }
+
+    fn call(&mut self) -> Result<Expr, LoxError> {
+        let mut expr = self.primary()?;
+
+        // For infinites loop instead of while true
+        loop {
+            if self.match_tokens(vec![TokenType::LEFT_PAREN]) {
+                expr = self.finish_call(expr)?;
+            } else {
+                break;
+            }
+        }
+
+        Ok(expr)
     }
 
     fn primary(&mut self) -> Result<Expr, LoxError> {
@@ -228,7 +245,10 @@ impl Parser {
                 }
             }
 
-            _ => return Err(self.error(token, "Expected Expression.")),
+            _ => {
+                //println!("Error at token: {:#?}", token);
+                return Err(self.error(token, "Expected Expression."));
+            }
         };
         self.advance();
         Ok(expr)
@@ -274,25 +294,27 @@ impl Parser {
     fn statement(&mut self) -> Result<Stmt, LoxError> {
         if self.match_tokens(vec![TokenType::BREAK]) {
             self.consume(TokenType::SEMICOLON, "Expected ';' after break")?;
-            return Ok(Stmt::Break);
+            Ok(Stmt::Break)
         } else if self.match_tokens(vec![TokenType::CONTINUE]) {
             self.consume(TokenType::SEMICOLON, "Expected ';' after continue.")?;
-            return Ok(Stmt::Continue);
+            Ok(Stmt::Continue)
         } else if self.match_tokens(vec![TokenType::IF]) {
-            return self.if_statement();
+            self.if_statement()
         } else if self.match_tokens(vec![TokenType::PRINT]) {
-            return self.print_statement();
+            self.print_statement()
+        } else if self.match_tokens(vec![TokenType::RETURN]) {
+            self.return_statement()
         } else if self.match_tokens(vec![TokenType::LEFT_BRACE]) {
-            return Ok(Stmt::Block {
+            Ok(Stmt::Block {
                 statements: self.block()?,
-            });
+            })
         } else if self.match_tokens(vec![TokenType::WHILE]) {
-            return self.while_statement();
+            self.while_statement()
         } else if self.match_tokens(vec![TokenType::FOR]) {
-            return self.for_statement();
+            self.for_statement()
+        } else {
+            self.expression_statement()
         }
-
-        self.expression_statement()
     }
 
     fn if_statement(&mut self) -> Result<Stmt, LoxError> {
@@ -475,5 +497,82 @@ impl Parser {
         }
 
         Ok(body)
+    }
+
+    fn finish_call(&mut self, callee: Expr) -> Result<Expr, LoxError> {
+        let mut arguments: Vec<Expr> = Vec::new();
+
+        //println!("Previous Fn Token: {:#?}", self.previous());
+        if !self.check(TokenType::RIGHT_PAREN) {
+            // Closest to do while loop I can think of.
+            loop {
+                if arguments.len() >= 255 {
+                    self.error(self.peek(), "Can't have mroe than 255 arguments");
+                }
+
+                //println!("Current Before Call: {}", self.current);
+                //println!("Current Token: {:?}", self.tokens[self.current]);
+                arguments.push(self.expression()?);
+
+                //println!("Current Token After Call: {:?}", self.tokens[self.current]);
+                if !self.match_tokens(vec![TokenType::COMMA]) {
+                    //println!("Break from function call.");
+                    break;
+                }
+            }
+        }
+
+        //println!("Total: {}, Current: {}", self.tokens.len(), self.current);
+        let paren = self.consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.")?;
+
+        Ok(Expr::Call {
+            callee: Box::new(callee),
+            paren,
+            arguments,
+        })
+    }
+
+    // This is not just declaration it seems.
+    fn function(&mut self) -> Result<Stmt, LoxError> {
+        let name = self.consume(TokenType::IDENTIFIER, "Expect function name.")?;
+
+        self.consume(TokenType::LEFT_PAREN, "Expected '(' after functoin name.")?;
+        let mut paramaters: Vec<Token> = Vec::new();
+        if !self.check(TokenType::RIGHT_PAREN) {
+            loop {
+                if paramaters.len() >= 255 {
+                    self.error(self.peek(), "Cannot have more than 255 params.");
+                }
+                paramaters.push(self.consume(TokenType::IDENTIFIER, "Expected paramater.")?);
+
+                if !self.match_tokens(vec![TokenType::COMMA]) {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenType::RIGHT_PAREN, "Expected ')' after paramaters")?;
+        self.consume(
+            TokenType::LEFT_BRACE,
+            "Expected '{' after function declaration.",
+        )?;
+        let body = self.block()?;
+        //println!("{:?}", self.peek());
+        Ok(Stmt::Function {
+            name,
+            paramaters,
+            body,
+        })
+    }
+
+    fn return_statement(&mut self) -> Result<Stmt, LoxError> {
+        let keyword: Token = self.previous().clone();
+        let value = if !self.check(TokenType::SEMICOLON) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
+        self.consume(TokenType::SEMICOLON, "Expect ';' after retrun.")?;
+        Ok(Stmt::Return { keyword, value })
     }
 }

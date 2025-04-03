@@ -9,6 +9,7 @@ use scanner::Scanner;
 pub mod ast_tools;
 pub mod environment;
 pub mod error;
+pub mod function;
 pub mod interpreter;
 pub mod parser;
 pub mod scanner;
@@ -70,7 +71,7 @@ impl Lox {
             return Err(LoxError::Error("Error running.".to_string()));
         }
 
-        println!("Statements: {:#?}", statements);
+        //println!("Statements: {:#?}", statements);
         let mut intpereter = Interpreter::new();
         intpereter.interpret(statements)?;
 

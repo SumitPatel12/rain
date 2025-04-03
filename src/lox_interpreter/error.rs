@@ -1,7 +1,10 @@
 use std::{io, string::FromUtf8Error};
 use thiserror::Error;
 
-use super::token::{Token, TokenType};
+use super::{
+    interpreter::Object,
+    token::{Token, TokenType},
+};
 
 pub fn report(column: usize, line: usize, position: &str, message: &str) {
     eprintln!(
@@ -39,4 +42,6 @@ pub enum LoxError {
     BreakStmtError,
     #[error("Continue Statement")]
     ContinueStmtError,
+    #[error("Return Error {value:?}")]
+    Return { value: Object },
 }

@@ -4,15 +4,18 @@ use std::{cell::RefCell, fmt, rc::Rc};
 use super::{
     ast_tools::{expr, stmt, Expr, Stmt},
     environment::Environment,
+    function::Function,
     token::{Literal, Token, TokenType},
 };
 
-#[derive(Clone)]
+// TODO: Add a callable class
+#[derive(Clone, Debug)]
 pub enum Object {
     Boolean(bool),
     NONE,
     Number(f64),
     String(String),
+    Callable(Function),
 }
 
 impl Object {
@@ -36,6 +39,7 @@ impl fmt::Display for Object {
             Object::Number(n) => write!(f, "{}", n),
             Object::String(s) => write!(f, "{}", s),
             Object::NONE => write!(f, "null"),
+            Object::Callable(fun) => write!(f, "Object callable function: {}", fun.name.lexeme),
         }
     }
 }
@@ -51,12 +55,14 @@ impl Interpreter {
         }
     }
 
+    #[allow(dead_code)]
     fn stringify(&self, object: Object) -> String {
         match object {
             Object::NONE => "None".to_string(),
             Object::Number(n) => n.to_string(),
             Object::Boolean(b) => b.to_string(),
             Object::String(s) => s,
+            Object::Callable(f) => f.to_string(),
         }
     }
 
@@ -97,7 +103,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn execute_block(
+    pub fn execute_block(
         &mut self,
         statements: &Vec<Stmt>,
         environment: Rc<RefCell<Environment>>,
@@ -238,17 +244,13 @@ impl expr::Visitor<Object> for Interpreter {
         self.environment.borrow_mut().get(name)
     }
 
-    fn visit_assignment_expression(
-        &mut self,
-        name: &Token,
-        value: &Expr,
-    ) -> Result<Object, LoxError> {
+    fn visit_assignment_expr(&mut self, name: &Token, value: &Expr) -> Result<Object, LoxError> {
         let value = self.evaluate(value)?;
         self.environment.borrow_mut().assign(name, value.clone())?;
         Ok(value)
     }
 
-    fn visit_logical_expression(
+    fn visit_logical_expr(
         &mut self,
         left: &Expr,
         operator: &Token,
@@ -267,6 +269,44 @@ impl expr::Visitor<Object> for Interpreter {
         }
 
         self.evaluate(right)
+    }
+
+    fn visit_call_expr(
+        &mut self,
+        callee: &Expr,
+        paren: &Token,
+        arguments: &Vec<Expr>,
+    ) -> Result<Object, LoxError> {
+        // TODO: Check if the callee is in fact callable and if not throw an error.
+        let callee_evaluated = self.evaluate(callee)?;
+
+        // TODO: Fk I'll have to check itreaters in more detail, don't know shit about them. That
+        // and closures I think.
+        let arguments_evaluated: Result<Vec<Object>, LoxError> = arguments
+            .into_iter()
+            .map(|expr| self.evaluate(expr))
+            .collect();
+        let args = arguments_evaluated?;
+
+        if let Object::Callable(function) = callee_evaluated {
+            if args.len() != function.arity() {
+                Err(LoxError::Runtime {
+                    token: paren.clone(),
+                    message: format!(
+                        "Expected {} arguments, but got {}.",
+                        function.arity(),
+                        args.len()
+                    ),
+                })
+            } else {
+                function.call(self, &args)
+            }
+        } else {
+            Err(LoxError::Runtime {
+                token: paren.clone(),
+                message: "Can only call functions.".to_string(),
+            })
+        }
     }
 }
 
@@ -346,6 +386,8 @@ impl stmt::Visitor<()> for Interpreter {
             let body_execution_result = self.execute(body);
             if let Err(LoxError::BreakStmtError) = body_execution_result {
                 break;
+            } else if let Err(LoxError::Return { value }) = body_execution_result {
+                return Err(LoxError::Return { value });
             } else if let Err(LoxError::ContinueStmtError) = body_execution_result {
                 condition_value = self.evaluate(condition)?;
                 continue;
@@ -361,17 +403,53 @@ impl stmt::Visitor<()> for Interpreter {
         Ok(())
     }
 
-    fn visit_break_statement(&mut self) -> Result<(), LoxError> {
+    fn visit_break_stmt(&mut self) -> Result<(), LoxError> {
         if self.environment.borrow().is_enclosed_in_loop {
             return Err(LoxError::BreakStmtError);
         }
         return Ok(());
     }
 
-    fn visit_continue_statement(&mut self) -> Result<(), LoxError> {
+    fn visit_continue_stmt(&mut self) -> Result<(), LoxError> {
         if self.environment.borrow().is_enclosed_in_loop {
             return Err(LoxError::ContinueStmtError);
         }
         return Ok(());
+    }
+
+    fn visit_function_stmt(
+        &mut self,
+        name: &Token,
+        paramaters: &Vec<Token>,
+        body: &Vec<Stmt>,
+    ) -> Result<(), LoxError> {
+        let function = Function {
+            name: name.clone(),
+            params: paramaters.clone(),
+            body: body.clone(),
+            closure: Rc::clone(&self.environment),
+        };
+
+        self.environment
+            .borrow_mut()
+            .define(name.lexeme.clone(), Object::Callable(function))?;
+        Ok(())
+    }
+
+    fn visit_return_stmt(
+        &mut self,
+        _keyword: &Token,
+        value: &Option<Expr>,
+    ) -> Result<(), LoxError> {
+        let return_value = if let Some(val) = value {
+            self.evaluate(val)?
+        } else {
+            Object::NONE
+        };
+
+        //println!("In Return Stmt: {:?}", return_value);
+        Err(LoxError::Return {
+            value: return_value,
+        })
     }
 }
